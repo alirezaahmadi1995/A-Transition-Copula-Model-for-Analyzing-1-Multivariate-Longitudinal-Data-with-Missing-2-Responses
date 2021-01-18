@@ -1,0 +1,801 @@
+#Calculation of the average of the AIC values and the corresponding standard deviation for Frank Copula fitted to data generated from Gaussian copula(100 iterations)
+##############Loading Installing the Necessary Packages
+library(copula)
+library(GJRM)
+library(xlsx)
+#############generating the "observed" bivariate continuous sample
+set.seed(0)
+######Constructing multivariate distributions by Gaussian Copulas with copula parameter equal to 0.65 
+mv.NE <- mvdc(normalCopula(0.65), c("norm", "norm"),
+              list(list(mean = 0, sd =sqrt(2)), list(mean = 0, sd =1)))
+N00=100 #####Number of iterations
+Out1=matrix(0,N00,1)
+Out2=Out3=Out4=Out5=matrix(0,N00,1)
+
+ 
+for(ii in 1:N00){
+  n <- 200   #####Number of samples
+  ######Generating samples from the multivariate distribution for each of the  time points
+  u <- rMvdc(n, mv.NE)
+  u2 <- rMvdc(n, mv.NE)
+  u3 <- rMvdc(n, mv.NE)
+  u4 <- rMvdc(n, mv.NE)
+  u5 <- rMvdc(n, mv.NE)
+  ######Generating explanatory variables
+  x2 <- runif(n); x1 <- rbinom(n,1,.4)
+  Sigma <- matrix(0.05, 2, 2); diag(Sigma) <- 1
+  cov   <- rMVN(n, rep(0,2), Sigma)
+  cov   <- pnorm(cov)
+  x3 <- round(cov[,1]); x4 <- round(cov[,2])
+  
+  ##########################################################
+   ######Generating first time point data
+  y11 <- 0.55 -1.95*x1 + 1.25*x3 +u[,1]
+  y21 <-        ifelse(0.45 - 0.7*x2+0.75*x4  + u[,2]>0,1,0)
+  ########From the second to the fifth time points we create longitudinal structure in the data by entering the previous time observation as an explanatory variable
+  ######Generating second time point data
+  y12 <- 0.1 + 0.5*y11-1*x1 + 0.90*x3 +u2[,1] 
+  y22 <-        ifelse(0.25 +4*y21 - 1*x2+0.4*x4  + u2[,2]>0,1,0) 
+  ######################################################
+  ##########Generating third time point data
+  y13 <- 0.18 + 0.2*y12 +0.5*x1 - 0.4*x3 +u3[,1] 
+  y23 <-        ifelse( 0.3 +0.4*y22 + 0.75*x2 -0.94*x4  + u3[,2]>0,1,0) 
+  ###############Generating forth time point data
+  y14 <- 0.23 -0.7*y13 +0.6*x1 + 0.2*x3 +u4[,1] 
+  y24 <-        ifelse( 0.4 + 1*y23  - 1.5*x2 +1.2*x4  + u4[,2]>0,1,0)
+  #########################
+  ###################Generating fifth point data
+  y15 <- 0.31 + 0.42*y14 -0.5*x1 + 0.8*x3 +u5[,1] 
+  y25 <-        ifelse( 0.2 +0.28*y24  - 1.4*x2 +1.1*x4  + u5[,2]>0,1,0)
+  ##############Deleting some randomly selected data in order to create at random missingness 
+  dataSim1 <- data.frame(y11, y21,x1,x2,x3,x4)
+  eq11   <- y11 ~ x1 + x3  
+  eq21   <- y21 ~ x2 + x4 
+  
+  fl <- list(eq21, eq11)
+  
+  out1 <- gjrm(fl, data = dataSim1, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out1[ii,]=c(AIC(out1))   
+  
+  ########################################################
+  ############################Analyzing the "observed" bivariate sample
+  #####Analyzing first time point data
+  dataSim2 <- data.frame(y12,y11 ,y22, y21,x1,x2,x3,x4)
+  eq12   <- y12 ~ y11+x1 + x3   
+  eq22   <- y22 ~ y21+x2 + x4  
+  f2 <- list(eq22, eq12)
+  #########Fitting Frank copula to data
+  out2 <- gjrm(f2, data = dataSim2, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+ ####Extracting the AIC values
+  Out2[ii,]=c(AIC(out2))   
+  
+  ##############################################################
+  dataSim3 <- data.frame(y12,y13 ,y22, y23,x1,x2,x3,x4)
+  eq13   <- y13 ~ y12+x1 + x3   
+  eq23   <- y23 ~ y22+x2 + x4  
+  f3 <- list(eq23, eq13)
+  out3 <- gjrm(f3, data = dataSim3, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out3[ii,]=c(AIC(out3))   
+  ######################################################################
+  dataSim4 <- data.frame(y13,y14 ,y23, y24,x1,x2,x3,x4)
+  eq14   <- y14 ~ y13+x1 + x3   
+  eq24   <- y24 ~ y23+x2 + x4  
+  f4 <- list(eq24, eq14)
+  out4 <- gjrm(f4, data = dataSim4, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out4[ii,]=c(AIC(out4))  
+  
+  #########################################################################
+  dataSim5 <- data.frame(y15,y14 ,y25, y24,x1,x2,x3,x4)
+  eq15   <- y15 ~ y14+x1 + x3   
+  eq25   <- y25 ~ y24+x2 + x4  
+  f5 <- list(eq25, eq15)
+  out5 <- gjrm(f5, data = dataSim5, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out5[ii,]=c(AIC(out5))  
+  print(ii)
+}
+############################################################################
+#################Putting the values in a vector   
+Out1<-c(Out1,Out2,Out3,Out4,Out5)
+################Calculating the average of AIC values
+Est=mean(Out1)
+###############Calculating standard deviation
+s.d=sd(Out1) 
+S1<-c(Est,s.d)
+#####Saving data in Excel
+write.xlsx(S1, file = "a1.xlsx",)
+################################################
+##############################
+##########
+#####
+library(copula)
+library(GJRM)
+library(xlsx)
+
+set.seed(100000000)
+
+mv.NE <- mvdc(normalCopula(0.65), c("norm", "norm"),
+              list(list(mean = 0, sd =sqrt(2)), list(mean = 0, sd =1)))
+N00=100
+Out1=matrix(0,N00,10)
+Out2=Out3=Out4=Out5=matrix(0,N00,1)
+
+
+for(ii in 1:N00){
+  n <- 200
+  u <- rMvdc(n, mv.NE)
+  u2 <- rMvdc(n, mv.NE)
+  u3 <- rMvdc(n, mv.NE)
+  u4 <- rMvdc(n, mv.NE)
+  u5 <- rMvdc(n, mv.NE)
+  
+  x2 <- runif(n); x1 <- rbinom(n,1,.4)
+  Sigma <- matrix(0.05, 2, 2); diag(Sigma) <- 1
+  cov   <- rMVN(n, rep(0,2), Sigma)
+  cov   <- pnorm(cov)
+  x3 <- round(cov[,1]); x4 <- round(cov[,2])
+  
+  ##########################################################
+  y11 <- 0.55 -1.95*x1 + 1.25*x3 +u[,1]
+  y21 <-        ifelse(0.45 - 0.7*x2+0.75*x4  + u[,2]>0,1,0)
+  #########################
+  y12 <- 0.1 + 0.5*y11-1*x1 + 0.90*x3 +u2[,1] 
+  y22 <-        ifelse(0.25 +4*y21 - 1*x2+0.4*x4  + u2[,2]>0,1,0) 
+  ######################################################
+  #########################
+  y13 <- 0.18 + 0.2*y12 +0.5*x1 - 0.4*x3 +u3[,1] 
+  y23 <-        ifelse( 0.3 +0.4*y22 + 0.75*x2 -0.94*x4  + u3[,2]>0,1,0) 
+  #########################
+  y14 <- 0.23 -0.7*y13 +0.6*x1 + 0.2*x3 +u4[,1] 
+  y24 <-        ifelse( 0.4 + 1*y23  - 1.5*x2 +1.2*x4  + u4[,2]>0,1,0)
+  #########################
+  y15 <- 0.31 + 0.42*y14 -0.5*x1 + 0.8*x3 +u5[,1] 
+  y25 <-        ifelse( 0.2 +0.28*y24  - 1.4*x2 +1.1*x4  + u5[,2]>0,1,0)
+  #######################
+  z <- data.frame(y12,y13,y14,y15)
+  colnames(z) <- c("y12","y13","y14","y15")
+  z[sample(1:nrow(z), 30), "y15"] <- NA
+  for(i in 1:nrow(z)){
+    if(sum(is.na(z[i,])==1)){
+      for(j in 1:4){
+        z[i,j]<-NA}
+      i<-i+1
+    }
+  }
+  e <- data.frame(y22,y23,y24,y25)
+  colnames(e) <- c("y22","y23","y24","y25")
+  for(i in 1:nrow(e)){
+    for(j in 1:ncol(e)){
+      e[i,j]<-e[i,j]+ z[i,j]- z[i,j]
+    }
+  } 
+  L <- data.frame(x1,x2,x3,x4)
+  colnames(L) <- c("x1","x2","x3","x4")
+  for(i in 1:nrow(L)){
+    for(j in 1:ncol(L)){
+      L[i,j]<-L[i,j]+ z[i,j]- z[i,j]
+    }
+  }
+  y12<- as.vector(z$y12)
+  y13<- as.vector(z$y13)
+  y14<- as.vector(z$y14)
+  y15<- as.vector(z$y15)
+  y22<- as.factor(e$y22)
+  y23<- as.factor(e$y23)
+  y24<- as.factor(e$y24)
+  y25<- as.factor(e$y25)
+  x1<- as.factor(L$x1)
+  x2<- as.vector(L$x2)
+  x3<- as.factor(L$x3)
+  x4<- as.factor(L$x4)
+  
+  
+  #######################
+  dataSim1 <- data.frame(y11, y21,x1,x2,x3,x4)
+  eq11   <- y11 ~ x1 + x3  
+  eq21   <- y21 ~ x2 + x4 
+  
+  fl <- list(eq21, eq11)
+  
+  out1 <- gjrm(fl, data = dataSim1, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out1[ii,]=c(AIC(out1))   
+  
+  ########################################################
+  dataSim2 <- data.frame(y12,y11 ,y22, y21,x1,x2,x3,x4)
+  eq12   <- y12 ~ y11+x1 + x3   
+  eq22   <- y22 ~ y21+x2 + x4  
+  f2 <- list(eq22, eq12)
+  out2 <- gjrm(f2, data = dataSim2, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out2[ii,]=c(AIC(out2))   
+  
+  ##############################################################
+  dataSim3 <- data.frame(y12,y13 ,y22, y23,x1,x2,x3,x4)
+  eq13   <- y13 ~ y12+x1 + x3   
+  eq23   <- y23 ~ y22+x2 + x4  
+  f3 <- list(eq23, eq13)
+  out3 <- gjrm(f3, data = dataSim3, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out3[ii,]=c(AIC(out3))   
+  ######################################################################
+  dataSim4 <- data.frame(y13,y14 ,y23, y24,x1,x2,x3,x4)
+  eq14   <- y14 ~ y13+x1 + x3   
+  eq24   <- y24 ~ y23+x2 + x4  
+  f4 <- list(eq24, eq14)
+  out4 <- gjrm(f4, data = dataSim4, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out4[ii,]=c(AIC(out4))  
+  
+  #########################################################################
+  dataSim5 <- data.frame(y15,y14 ,y25, y24,x1,x2,x3,x4)
+  eq15   <- y15 ~ y14+x1 + x3   
+  eq25   <- y25 ~ y24+x2 + x4  
+  f5 <- list(eq25, eq15)
+  out5 <- gjrm(f5, data = dataSim5, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out5[ii,]=c(AIC(out5))  
+  print(ii)
+}
+############################################################################
+############################################################################
+Out1<-c(Out1,Out2,Out3,Out4,Out5)
+Est=mean(Out1)
+s.d=sd(Out1)
+S2<-c(Est,s.d)
+write.xlsx(S2, file = "a2.xlsx",)
+###########################################
+##################
+################
+######
+#####
+library(copula)
+library(GJRM)
+library(xlsx)
+
+set.seed(30000000)
+
+mv.NE <- mvdc(normalCopula(0.65), c("norm", "norm"),
+              list(list(mean = 0, sd =sqrt(2)), list(mean = 0, sd =1)))
+N00=100
+Out1=matrix(0,N00,10)
+Out2=Out3=Out4=Out5=matrix(0,N00,1)
+
+
+for(ii in 1:N00){
+  n <- 200
+  u <- rMvdc(n, mv.NE)
+  u2 <- rMvdc(n, mv.NE)
+  u3 <- rMvdc(n, mv.NE)
+  u4 <- rMvdc(n, mv.NE)
+  u5 <- rMvdc(n, mv.NE)
+  
+  x2 <- runif(n); x1 <- rbinom(n,1,.4)
+  Sigma <- matrix(0.05, 2, 2); diag(Sigma) <- 1
+  cov   <- rMVN(n, rep(0,2), Sigma)
+  cov   <- pnorm(cov)
+  x3 <- round(cov[,1]); x4 <- round(cov[,2])
+  
+  ##########################################################
+  y11 <- 0.55 -1.95*x1 + 1.25*x3 +u[,1]
+  y21 <-        ifelse(0.45 - 0.7*x2+0.75*x4  + u[,2]>0,1,0)
+  #########################
+  y12 <- 0.1 + 0.5*y11-1*x1 + 0.90*x3 +u2[,1] 
+  y22 <-        ifelse(0.25 +4*y21 - 1*x2+0.4*x4  + u2[,2]>0,1,0) 
+  ######################################################
+  #########################
+  y13 <- 0.18 + 0.2*y12 +0.5*x1 - 0.4*x3 +u3[,1] 
+  y23 <-        ifelse( 0.3 +0.4*y22 + 0.75*x2 -0.94*x4  + u3[,2]>0,1,0) 
+  #########################
+  y14 <- 0.23 -0.7*y13 +0.6*x1 + 0.2*x3 +u4[,1] 
+  y24 <-        ifelse( 0.4 + 1*y23  - 1.5*x2 +1.2*x4  + u4[,2]>0,1,0)
+  #########################
+  y15 <- 0.31 + 0.42*y14 -0.5*x1 + 0.8*x3 +u5[,1] 
+  y25 <-        ifelse( 0.2 +0.28*y24  - 1.4*x2 +1.1*x4  + u5[,2]>0,1,0)
+  #######################
+  z <- data.frame(y12,y13,y14,y15)
+  colnames(z) <- c("y12","y13","y14","y15")
+  z[sample(1:nrow(z), 60), "y15"] <- NA
+  for(i in 1:nrow(z)){
+    if(sum(is.na(z[i,])==1)){
+      for(j in 1:4){
+        z[i,j]<-NA}
+      i<-i+1
+    }
+  }
+  e <- data.frame(y22,y23,y24,y25)
+  colnames(e) <- c("y22","y23","y24","y25")
+  for(i in 1:nrow(e)){
+    for(j in 1:ncol(e)){
+      e[i,j]<-e[i,j]+ z[i,j]- z[i,j]
+    }
+  } 
+  L <- data.frame(x1,x2,x3,x4)
+  colnames(L) <- c("x1","x2","x3","x4")
+  for(i in 1:nrow(L)){
+    for(j in 1:ncol(L)){
+      L[i,j]<-L[i,j]+ z[i,j]- z[i,j]
+    }
+  }
+  y12<- as.vector(z$y12)
+  y13<- as.vector(z$y13)
+  y14<- as.vector(z$y14)
+  y15<- as.vector(z$y15)
+  y22<- as.factor(e$y22)
+  y23<- as.factor(e$y23)
+  y24<- as.factor(e$y24)
+  y25<- as.factor(e$y25)
+  x1<- as.factor(L$x1)
+  x2<- as.vector(L$x2)
+  x3<- as.factor(L$x3)
+  x4<- as.factor(L$x4)
+  
+  #######################
+  dataSim1 <- data.frame(y11, y21,x1,x2,x3,x4)
+  eq11   <- y11 ~ x1 + x3  
+  eq21   <- y21 ~ x2 + x4 
+  
+  fl <- list(eq21, eq11)
+  
+  out1 <- gjrm(fl, data = dataSim1, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out1[ii,]=c(AIC(out1))   
+  
+  ########################################################
+  dataSim2 <- data.frame(y12,y11 ,y22, y21,x1,x2,x3,x4)
+  eq12   <- y12 ~ y11+x1 + x3   
+  eq22   <- y22 ~ y21+x2 + x4  
+  f2 <- list(eq22, eq12)
+  out2 <- gjrm(f2, data = dataSim2, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out2[ii,]=c(AIC(out2))   
+  
+  ##############################################################
+  dataSim3 <- data.frame(y12,y13 ,y22, y23,x1,x2,x3,x4)
+  eq13   <- y13 ~ y12+x1 + x3   
+  eq23   <- y23 ~ y22+x2 + x4  
+  f3 <- list(eq23, eq13)
+  out3 <- gjrm(f3, data = dataSim3, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out3[ii,]=c(AIC(out3))   
+  ######################################################################
+  dataSim4 <- data.frame(y13,y14 ,y23, y24,x1,x2,x3,x4)
+  eq14   <- y14 ~ y13+x1 + x3   
+  eq24   <- y24 ~ y23+x2 + x4  
+  f4 <- list(eq24, eq14)
+  out4 <- gjrm(f4, data = dataSim4, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out4[ii,]=c(AIC(out4))  
+  
+  #########################################################################
+  dataSim5 <- data.frame(y15,y14 ,y25, y24,x1,x2,x3,x4)
+  eq15   <- y15 ~ y14+x1 + x3   
+  eq25   <- y25 ~ y24+x2 + x4  
+  f5 <- list(eq25, eq15)
+  out5 <- gjrm(f5, data = dataSim5, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out5[ii,]=c(AIC(out5))  
+  print(ii)
+}
+############################################################################
+############################################################################
+Out1<-c(Out1,Out2,Out3,Out4,Out5)
+Est=mean(Out1)
+s.d=sd(Out1)
+S1<-c(Est,s.d)
+write.xlsx(S1, file = "a3.xlsx",)
+####################################################
+#####################################
+####################
+#########
+#####
+library(copula)
+library(GJRM)
+library(xlsx)
+
+set.seed(300)
+
+mv.NE <- mvdc(normalCopula(0.65), c("norm", "norm"),
+              list(list(mean = 0, sd =sqrt(2)), list(mean = 0, sd =1)))
+N00=100
+Out1=matrix(0,N00,10)
+Out2=Out3=Out4=Out5=matrix(0,N00,1)
+
+
+for(ii in 1:N00){
+  n <- 500
+  u <- rMvdc(n, mv.NE)
+  u2 <- rMvdc(n, mv.NE)
+  u3 <- rMvdc(n, mv.NE)
+  u4 <- rMvdc(n, mv.NE)
+  u5 <- rMvdc(n, mv.NE)
+  
+  x2 <- runif(n); x1 <- rbinom(n,1,.4)
+  Sigma <- matrix(0.05, 2, 2); diag(Sigma) <- 1
+  cov   <- rMVN(n, rep(0,2), Sigma)
+  cov   <- pnorm(cov)
+  x3 <- round(cov[,1]); x4 <- round(cov[,2])
+  
+  ##########################################################
+  y11 <- 0.55 -1.95*x1 + 1.25*x3 +u[,1]
+  y21 <-        ifelse(0.45 - 0.7*x2+0.75*x4  + u[,2]>0,1,0)
+  #########################
+  y12 <- 0.1 + 0.5*y11-1*x1 + 0.90*x3 +u2[,1] 
+  y22 <-        ifelse(0.25 +4*y21 - 1*x2+0.4*x4  + u2[,2]>0,1,0) 
+  ######################################################
+  #########################
+  y13 <- 0.18 + 0.2*y12 +0.5*x1 - 0.4*x3 +u3[,1] 
+  y23 <-        ifelse( 0.3 +0.4*y22 + 0.75*x2 -0.94*x4  + u3[,2]>0,1,0) 
+  #########################
+  y14 <- 0.23 -0.7*y13 +0.6*x1 + 0.2*x3 +u4[,1] 
+  y24 <-        ifelse( 0.4 + 1*y23  - 1.5*x2 +1.2*x4  + u4[,2]>0,1,0)
+  #########################
+  y15 <- 0.31 + 0.42*y14 -0.5*x1 + 0.8*x3 +u5[,1] 
+  y25 <-        ifelse( 0.2 +0.28*y24  - 1.4*x2 +1.1*x4  + u5[,2]>0,1,0)
+  #######################
+  dataSim1 <- data.frame(y11, y21,x1,x2,x3,x4)
+  eq11   <- y11 ~ x1 + x3  
+  eq21   <- y21 ~ x2 + x4 
+  
+  fl <- list(eq21, eq11)
+  
+  out1 <- gjrm(fl, data = dataSim1, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out1[ii,]=c(AIC(out1))   
+  
+  ########################################################
+  dataSim2 <- data.frame(y12,y11 ,y22, y21,x1,x2,x3,x4)
+  eq12   <- y12 ~ y11+x1 + x3   
+  eq22   <- y22 ~ y21+x2 + x4  
+  f2 <- list(eq22, eq12)
+  out2 <- gjrm(f2, data = dataSim2, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out2[ii,]=c(AIC(out2))   
+  
+  ##############################################################
+  dataSim3 <- data.frame(y12,y13 ,y22, y23,x1,x2,x3,x4)
+  eq13   <- y13 ~ y12+x1 + x3   
+  eq23   <- y23 ~ y22+x2 + x4  
+  f3 <- list(eq23, eq13)
+  out3 <- gjrm(f3, data = dataSim3, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out3[ii,]=c(AIC(out3))   
+  ######################################################################
+  dataSim4 <- data.frame(y13,y14 ,y23, y24,x1,x2,x3,x4)
+  eq14   <- y14 ~ y13+x1 + x3   
+  eq24   <- y24 ~ y23+x2 + x4  
+  f4 <- list(eq24, eq14)
+  out4 <- gjrm(f4, data = dataSim4, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out4[ii,]=c(AIC(out4))  
+  
+  #########################################################################
+  dataSim5 <- data.frame(y15,y14 ,y25, y24,x1,x2,x3,x4)
+  eq15   <- y15 ~ y14+x1 + x3   
+  eq25   <- y25 ~ y24+x2 + x4  
+  f5 <- list(eq25, eq15)
+  out5 <- gjrm(f5, data = dataSim5, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out5[ii,]=c(AIC(out5))  
+  print(ii)
+}
+############################################################################
+############################################################################
+Out1<-c(Out1,Out2,Out3,Out4,Out5)
+Est=mean(Out1)
+s.d=sd(Out1)
+S1<-c(Est,s.d)
+write.xlsx(S1, file = "a4.xlsx",)
+##########################################
+#############################
+####################
+#####
+library(copula)
+library(GJRM)
+library(xlsx)
+
+set.seed(400000)
+
+mv.NE <- mvdc(normalCopula(0.65), c("norm", "norm"),
+              list(list(mean = 0, sd =sqrt(2)), list(mean = 0, sd =1)))
+N00=100
+Out1=matrix(0,N00,10)
+Out2=Out3=Out4=Out5=matrix(0,N00,1)
+
+
+for(ii in 1:N00){
+  n <- 500
+  u <- rMvdc(n, mv.NE)
+  u2 <- rMvdc(n, mv.NE)
+  u3 <- rMvdc(n, mv.NE)
+  u4 <- rMvdc(n, mv.NE)
+  u5 <- rMvdc(n, mv.NE)
+  
+  x2 <- runif(n); x1 <- rbinom(n,1,.4)
+  Sigma <- matrix(0.05, 2, 2); diag(Sigma) <- 1
+  cov   <- rMVN(n, rep(0,2), Sigma)
+  cov   <- pnorm(cov)
+  x3 <- round(cov[,1]); x4 <- round(cov[,2])
+  
+  ##########################################################
+  y11 <- 0.55 -1.95*x1 + 1.25*x3 +u[,1]
+  y21 <-        ifelse(0.45 - 0.7*x2+0.75*x4  + u[,2]>0,1,0)
+  #########################
+  y12 <- 0.1 + 0.5*y11-1*x1 + 0.90*x3 +u2[,1] 
+  y22 <-        ifelse(0.25 +4*y21 - 1*x2+0.4*x4  + u2[,2]>0,1,0) 
+  ######################################################
+  #########################
+  y13 <- 0.18 + 0.2*y12 +0.5*x1 - 0.4*x3 +u3[,1] 
+  y23 <-        ifelse( 0.3 +0.4*y22 + 0.75*x2 -0.94*x4  + u3[,2]>0,1,0) 
+  #########################
+  y14 <- 0.23 -0.7*y13 +0.6*x1 + 0.2*x3 +u4[,1] 
+  y24 <-        ifelse( 0.4 + 1*y23  - 1.5*x2 +1.2*x4  + u4[,2]>0,1,0)
+  #########################
+  y15 <- 0.31 + 0.42*y14 -0.5*x1 + 0.8*x3 +u5[,1] 
+  y25 <-        ifelse( 0.2 +0.28*y24  - 1.4*x2 +1.1*x4  + u5[,2]>0,1,0)
+  #######################
+  z <- data.frame(y12,y13,y14,y15)
+  colnames(z) <- c("y12","y13","y14","y15")
+  z[sample(1:nrow(z), 75), "y15"] <- NA
+  for(i in 1:nrow(z)){
+    if(sum(is.na(z[i,])==1)){
+      j<-sample(1:4, 3, replace = FALSE)
+      z[i,j]<-NA
+      i<-i+1
+    }
+  }
+  e <- data.frame(y22,y23,y24,y25)
+  colnames(e) <- c("y22","y23","y24","y25")
+  for(i in 1:nrow(e)){
+    for(j in 1:ncol(e)){
+      e[i,j]<-e[i,j]+ z[i,j]- z[i,j]
+    }
+  }
+  L <- data.frame(x1,x2,x3,x4)
+  colnames(L) <- c("x1","x2","x3","x4")
+  for(i in 1:nrow(L)){
+    for(j in 1:ncol(L)){
+      L[i,j]<-L[i,j]+ z[i,j]- z[i,j]
+    }
+  }
+  y12<- as.vector(z$y12)
+  y13<- as.vector(z$y13)
+  y14<- as.vector(z$y14)
+  y15<- as.vector(z$y15)
+  y22<- as.factor(e$y22)
+  y23<- as.factor(e$y23)
+  y24<- as.factor(e$y24)
+  y25<- as.factor(e$y25)
+  x1<- as.factor(L$x1)
+  x2<- as.vector(L$x2)
+  x3<- as.factor(L$x3)
+  x4<- as.factor(L$x4)
+  
+  #######################
+  dataSim1 <- data.frame(y11, y21,x1,x2,x3,x4)
+  eq11   <- y11 ~ x1 + x3  
+  eq21   <- y21 ~ x2 + x4 
+  
+  fl <- list(eq21, eq11)
+  
+  out1 <- gjrm(fl, data = dataSim1, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out1[ii,]=c(AIC(out1))   
+  
+  ########################################################
+  dataSim2 <- data.frame(y12,y11 ,y22, y21,x1,x2,x3,x4)
+  eq12   <- y12 ~ y11+x1 + x3   
+  eq22   <- y22 ~ y21+x2 + x4  
+  f2 <- list(eq22, eq12)
+  out2 <- gjrm(f2, data = dataSim2, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out2[ii,]=c(AIC(out2))   
+  
+  ##############################################################
+  dataSim3 <- data.frame(y12,y13 ,y22, y23,x1,x2,x3,x4)
+  eq13   <- y13 ~ y12+x1 + x3   
+  eq23   <- y23 ~ y22+x2 + x4  
+  f3 <- list(eq23, eq13)
+  out3 <- gjrm(f3, data = dataSim3, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out3[ii,]=c(AIC(out3))   
+  ######################################################################
+  dataSim4 <- data.frame(y13,y14 ,y23, y24,x1,x2,x3,x4)
+  eq14   <- y14 ~ y13+x1 + x3   
+  eq24   <- y24 ~ y23+x2 + x4  
+  f4 <- list(eq24, eq14)
+  out4 <- gjrm(f4, data = dataSim4, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out4[ii,]=c(AIC(out4))  
+  
+  #########################################################################
+  dataSim5 <- data.frame(y15,y14 ,y25, y24,x1,x2,x3,x4)
+  eq15   <- y15 ~ y14+x1 + x3   
+  eq25   <- y25 ~ y24+x2 + x4  
+  f5 <- list(eq25, eq15)
+  out5 <- gjrm(f5, data = dataSim5, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out5[ii,]=c(AIC(out5))  
+  print(ii)
+}
+############################################################################
+############################################################################
+Out1<-c(Out1,Out2,Out3,Out4,Out5)
+Est=mean(Out1)
+s.d=sd(Out1)
+S1<-c(Est,s.d)
+write.xlsx(S1, file = "a5.xlsx",)
+###########################################3
+##################################
+############################
+################
+#####
+#####
+library(copula)
+library(GJRM)
+library(xlsx)
+
+set.seed(100)
+
+mv.NE <- mvdc(normalCopula(0.65), c("norm", "norm"),
+              list(list(mean = 0, sd =sqrt(2)), list(mean = 0, sd =1)))
+N00=100
+Out1=matrix(0,N00,10)
+Out2=Out3=Out4=Out5=matrix(0,N00,1)
+
+
+for(ii in 1:N00){
+  n <- 500
+  u <- rMvdc(n, mv.NE)
+  u2 <- rMvdc(n, mv.NE)
+  u3 <- rMvdc(n, mv.NE)
+  u4 <- rMvdc(n, mv.NE)
+  u5 <- rMvdc(n, mv.NE)
+  
+  x2 <- runif(n); x1 <- rbinom(n,1,.4)
+  Sigma <- matrix(0.05, 2, 2); diag(Sigma) <- 1
+  cov   <- rMVN(n, rep(0,2), Sigma)
+  cov   <- pnorm(cov)
+  x3 <- round(cov[,1]); x4 <- round(cov[,2])
+  
+  ##########################################################
+  y11 <- 0.55 -1.95*x1 + 1.25*x3 +u[,1]
+  y21 <-        ifelse(0.45 - 0.7*x2+0.75*x4  + u[,2]>0,1,0)
+  #########################
+  y12 <- 0.1 + 0.5*y11-1*x1 + 0.90*x3 +u2[,1] 
+  y22 <-        ifelse(0.25 +4*y21 - 1*x2+0.4*x4  + u2[,2]>0,1,0) 
+  ######################################################
+  #########################
+  y13 <- 0.18 + 0.2*y12 +0.5*x1 - 0.4*x3 +u3[,1] 
+  y23 <-        ifelse( 0.3 +0.4*y22 + 0.75*x2 -0.94*x4  + u3[,2]>0,1,0) 
+  #########################
+  y14 <- 0.23 -0.7*y13 +0.6*x1 + 0.2*x3 +u4[,1] 
+  y24 <-        ifelse( 0.4 + 1*y23  - 1.5*x2 +1.2*x4  + u4[,2]>0,1,0)
+  #########################
+  y15 <- 0.31 + 0.42*y14 -0.5*x1 + 0.8*x3 +u5[,1] 
+  y25 <-        ifelse( 0.2 +0.28*y24  - 1.4*x2 +1.1*x4  + u5[,2]>0,1,0)
+  #######################
+  z <- data.frame(y12,y13,y14,y15)
+  colnames(z) <- c("y12","y13","y14","y15")
+  z[sample(1:nrow(z), 150), "y15"] <- NA
+  for(i in 1:nrow(z)){
+    if(sum(is.na(z[i,])==1)){
+      j<-sample(1:4, 3, replace = FALSE)
+      z[i,j]<-NA
+      i<-i+1
+    }
+  }
+  e <- data.frame(y22,y23,y24,y25)
+  colnames(e) <- c("y22","y23","y24","y25")
+  for(i in 1:nrow(e)){
+    for(j in 1:ncol(e)){
+      e[i,j]<-e[i,j]+ z[i,j]- z[i,j]
+    }
+  }
+  L <- data.frame(x1,x2,x3,x4)
+  colnames(L) <- c("x1","x2","x3","x4")
+  for(i in 1:nrow(L)){
+    for(j in 1:ncol(L)){
+      L[i,j]<-L[i,j]+ z[i,j]- z[i,j]
+    }
+  }
+  y12<- as.vector(z$y12)
+  y13<- as.vector(z$y13)
+  y14<- as.vector(z$y14)
+  y15<- as.vector(z$y15)
+  y22<- as.factor(e$y22)
+  y23<- as.factor(e$y23)
+  y24<- as.factor(e$y24)
+  y25<- as.factor(e$y25)
+  x1<- as.factor(L$x1)
+  x2<- as.vector(L$x2)
+  x3<- as.factor(L$x3)
+  x4<- as.factor(L$x4)
+  
+  #######################
+  dataSim1 <- data.frame(y11, y21,x1,x2,x3,x4)
+  eq11   <- y11 ~ x1 + x3  
+  eq21   <- y21 ~ x2 + x4 
+  
+  fl <- list(eq21, eq11)
+  
+  out1 <- gjrm(fl, data = dataSim1, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out1[ii,]=c(AIC(out1))   
+  
+  ########################################################
+  dataSim2 <- data.frame(y12,y11 ,y22, y21,x1,x2,x3,x4)
+  eq12   <- y12 ~ y11+x1 + x3   
+  eq22   <- y22 ~ y21+x2 + x4  
+  f2 <- list(eq22, eq12)
+  out2 <- gjrm(f2, data = dataSim2, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out2[ii,]=c(AIC(out2))   
+  
+  ##############################################################
+  dataSim3 <- data.frame(y12,y13 ,y22, y23,x1,x2,x3,x4)
+  eq13   <- y13 ~ y12+x1 + x3   
+  eq23   <- y23 ~ y22+x2 + x4  
+  f3 <- list(eq23, eq13)
+  out3 <- gjrm(f3, data = dataSim3, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out3[ii,]=c(AIC(out3))   
+  ######################################################################
+  dataSim4 <- data.frame(y13,y14 ,y23, y24,x1,x2,x3,x4)
+  eq14   <- y14 ~ y13+x1 + x3   
+  eq24   <- y24 ~ y23+x2 + x4  
+  f4 <- list(eq24, eq14)
+  out4 <- gjrm(f4, data = dataSim4, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out4[ii,]=c(AIC(out4))  
+  
+  #########################################################################
+  dataSim5 <- data.frame(y15,y14 ,y25, y24,x1,x2,x3,x4)
+  eq15   <- y15 ~ y14+x1 + x3   
+  eq25   <- y25 ~ y24+x2 + x4  
+  f5 <- list(eq25, eq15)
+  out5 <- gjrm(f5, data = dataSim5, 
+               margins = c("probit","N"), BivD = "F",
+               Model = "B")
+  Out5[ii,]=c(AIC(out5))  
+  print(ii)
+}
+
+Out1<-c(Out1,Out2,Out3,Out4,Out5)
+Est=mean(Out1)
+s.d=sd(Out1)
+S1<-c(Est,s.d)
+write.xlsx(S1, file = "a6.xlsx",)
