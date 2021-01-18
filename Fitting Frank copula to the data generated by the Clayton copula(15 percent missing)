@@ -1,0 +1,248 @@
+############## An example of simulation study R codes 
+##############Loading Installing the Necessary Packages
+library(copula)
+library(GJRM)
+library(xlsx)
+##############generating the "observed" bivariate continuous sample ##############  
+set.seed(0)
+######Constructing multivariate distributions by Clayton Copulas with copula parameter equal to 1.6363 
+mv.NE <- mvdc(claytonCopula(1.6363), c("norm", "norm"),
+              list(list(mean = 0, sd =sqrt(2)), list(mean = 0, sd =1)))
+######
+
+N00=100 #####Number of iterations
+Out1=matrix(0,N00,12)
+Out2=Out3=Out4=Out5=matrix(0,N00,14)
+
+
+for(ii in 1:N00){
+  n <- 200
+  ######Generating samples from the multivariate distribution for each of the  time points
+  u <- rMvdc(n, mv.NE)
+  u2 <- rMvdc(n, mv.NE)
+  u3 <- rMvdc(n, mv.NE)
+  u4 <- rMvdc(n, mv.NE)
+  u5 <- rMvdc(n, mv.NE)
+  
+  ######Generating explanatory variables
+  x1 <- runif(n); x2 <- rbinom(n,1,.2)
+  Sigma <- matrix(0.75, 2, 2); diag(Sigma) <- 1
+  cov   <- rMVN(n, rep(0,2), Sigma)
+  cov   <- pnorm(cov)
+  x3 <- round(cov[,1]); x4 <- round(cov[,2])
+  
+  ######Generating first time point data
+  y11 <- 0.55 -1.95*x1 + 1.25*x3 +u[,2] 
+  y21 <-        0.45 - 0.7*x2+0.75*x4  + u[,1]
+  ######From the second to the fifth time points we create longitudinal structure in the data by entering the previous time observation as an explanatory variable
+  ######Generating second point data
+  y12 <- 0.1 + 0.5*y11-1*x1 + 0.90*x3 +u2[,2] 
+  y22 <-        0.25 +4*y21 - 1*x2+0.4*x4  + u2[,1] 
+  ######Generating third point data
+  y13 <- 0.18 + 0.2*y12 +0.5*x1 - 0.4*x3 +u3[,2] 
+  y23 <-        0.3 +0.4*y22 + 0.75*x2 -0.94*x4  + u3[,1] 
+  ######Generating forth point data
+  y14 <- 0.23 -0.7*y13 +0.6*x1 + 0.2*x3 +u4[,2] 
+  y24 <-        0.4 + 1*y23  - 1.5*x2 +1.2*x4  + u4[,1]
+  ######Generating fifth point data
+  y15 <- 0.31 + 0.42*y14 -0.5*x1 + 0.8*x3 +u5[,2] 
+  y25 <-        0.2 +0.28*y24  - 1.4*x2 +1.1*x4  + u5[,1]
+  ######
+  #####Deleting some randomly selected data in order to create at random missingness 
+  z <- data.frame(y12,y13,y14,y15)
+  colnames(z) <- c("y12","y13","y14","y15")
+  z[sample(1:nrow(z), 30), "y15"] <- NA
+  for(i in 1:nrow(z)){
+    if(sum(is.na(z[i,])==1)){
+      for(j in 1:4){
+        z[i,j]<-NA}
+      i<-i+1
+    }
+  }
+  e <- data.frame(y22,y23,y24,y25)
+  colnames(e) <- c("y22","y23","y24","y25")
+  for(i in 1:nrow(e)){
+    for(j in 1:ncol(e)){
+      e[i,j]<-e[i,j]+ z[i,j]- z[i,j]
+    }
+  } 
+  y12<- as.vector(z$y12)
+  y13<- as.vector(z$y13)
+  y14<- as.vector(z$y14)
+  y15<- as.vector(z$y15)
+  y22<- as.vector(e$y22)
+  y23<- as.vector(e$y23)
+  y24<- as.vector(e$y24)
+  y25<- as.vector(e$y25)
+  #############Analyzing the "observed" bivariate continuous sample ##############
+  #####Analyzing first time point data 
+  dataSim1 <- data.frame(y11, y21,x1,x2,x3,x4)
+  eq11   <- y11 ~ x1 + x3  
+  eq21   <- y21 ~ x2 + x4 
+  
+  fl <- list(eq11, eq21)
+  #####Fitting Frank copula to data
+  out1 <- gjrm(fl, data = dataSim1, 
+               margins = c("N","N"), BivD = "F",
+               Model = "B")
+  #####Extracting the required information from the fitted proposed model 
+  Out1[ii,]=c(out1$coefficients,out1$theta,out1$sigma22.a,out1$tau)  
+  
+  ########################################################
+  #####Analyzing second time point data
+  dataSim2 <- data.frame(y12,y11 ,y22, y21,x1,x2,x3,x4)
+  #####Fitting the Markov transition model
+  eq12   <- y12 ~ y11+x1 + x3    
+  eq22   <- y22 ~ y21+x2 + x4  
+  f2 <- list(eq12, eq22)
+  out2 <- gjrm(f2, data = dataSim2, 
+               margins = c("N","N"), BivD = "F",
+               Model = "B")
+  Out2[ii,]=c(out2$coefficients,out2$theta,out2$sigma22.a,out2$tau)  
+  
+  ##############################################################
+  #####Analyzing third time point data
+  dataSim3 <- data.frame(y12,y13 ,y22, y23,x1,x2,x3,x4)
+  eq13   <- y13 ~ y12+x1 + x3   
+  eq23   <- y23 ~ y22+x2 + x4  
+  f3 <- list(eq13, eq23)
+  out3 <- gjrm(f3, data = dataSim3, 
+               margins = c("N","N"), BivD = "F",
+               Model = "B")
+  Out3[ii,]=c(out3$coefficients,out3$theta,out3$sigma22.a,out3$tau)  
+  ######################################################################
+  #####Analyzing forth time point data
+  dataSim4 <- data.frame(y13,y14 ,y23, y24,x1,x2,x3,x4)
+  eq14   <- y14 ~ y13+x1 + x3   
+  eq24   <- y24 ~ y23+x2 + x4  
+  f4 <- list(eq14, eq24)
+  out4 <- gjrm(f4, data = dataSim4, 
+               margins = c("N","N"), BivD = "F",
+               Model = "B")
+  Out4[ii,]=c(out4$coefficients,out4$theta,out4$sigma22.a,out4$tau)  
+  
+  #########################################################################
+  #####Analyzing fifth time point data
+  dataSim5 <- data.frame(y15,y14 ,y25, y24,x1,x2,x3,x4)
+  eq15   <- y15 ~ y14+x1 + x3   
+  eq25   <- y25 ~ y24+x2 + x4  
+  f5 <- list(eq15, eq25)
+  out5 <- gjrm(f5, data = dataSim5, 
+               margins = c("N","N"), BivD = "F",
+               Model = "B")
+  Out5[ii,]=c(out5$coefficients,out5$theta,out5$sigma22.a,out5$tau)  
+  print(ii)
+}
+############################################################################
+#####Calculating  the standard error, the root of the mean square error, and the relative bias
+Out1<-matrix(Out1,ncol=12)
+z1<-Out1[,c(-7,-8,-9)]
+#####Coefficient vector
+real1=c(0.55,-1.95,1.25,0.45,-0.7,0.75,1.636,2,0.450)
+r1<-rep(real1,100)
+re1<-matrix(r1,ncol=9,byrow=T)
+#####Coefficient estimates
+Est=apply(z1,2,mean) 
+#####Calculating standard error
+S.E.=apply(z1,2,sd)/sqrt(N00) 
+#####Calculating the relative bias
+Rel.Bias=(apply(z1,2,mean)/real1)-1 
+a=(z1-re1)^2
+b=c(sum(a[,1]),sum(a[,2]),sum(a[,3]),sum(a[,4]),sum(a[,5]),sum(a[,6]),sum(a[,7]),sum(a[,8]),sum(a[,9]))
+#####Calculating the root of the mean square error
+RMSE=sqrt(b/100) 
+
+S1=cbind(real1,Est,S.E.,Rel.Bias,RMSE)
+S1<-matrix(S1,ncol=5)
+rownames(S1)<- c("BETA01","BETA11","BETA21","ALPHA01","ALPHA11","ALPHA21","RHO","SIGMA","TAU")
+write.xlsx(S1, file = "ma1.xlsx",) #####Saving data in Excel
+#########################################################################
+#########################################################################
+Out2<-matrix(Out2,ncol=14)
+z2<-Out2[,c(-9,-10,-11)]
+real2=c(0.1,0.5,-1,0.90,0.25,4,-1,0.4,1.636,2,0.450)
+r2<-rep(real2,100)
+re2<-matrix(r2,ncol=11,byrow=T)
+
+Est2=apply(z2,2,mean)
+
+S.E.2=apply(z2,2,sd)/sqrt(N00)
+
+Rel.Bias2=(apply(z2,2,mean)/real2)-1
+a2=(z2-re2)^2
+b2=c(sum(a2[,1]),sum(a2[,2]),sum(a2[,3]),sum(a2[,4]),sum(a2[,5]),sum(a2[,6]),sum(a2[,7]),sum(a2[,8]),sum(a2[,9]),sum(a2[,10]),sum(a2[,11]))
+RMSE2=sqrt(b2/100)
+
+S2=cbind(real2,Est2,S.E.2,Rel.Bias2,RMSE2)
+S2<-matrix(S2,ncol=5)
+
+rownames(S2)<- c("BETA02","GUMMA1","BETA12","BETA22","ALPHA02","GUMMA2","ALPHA12","ALPHA22","RHO2","SIGMA2","TAU2")
+write.xlsx(S2, file = "ma2.xlsx",)
+###########################################################################
+################################################################
+Out3<-matrix(Out3,ncol=14)
+z3<-Out3[,c(-9,-10,-11)]
+real3=c(0.18,0.2,0.5,-0.4,0.3,0.4,0.75,-0.94,1.636,2,0.450)
+r3<-rep(real3,100)
+re3<-matrix(r3,ncol=11,byrow=T)
+
+Est3=apply(z3,2,mean)
+
+S.E.3=apply(z3,2,sd)/sqrt(N00)
+
+Rel.Bias3=(apply(z3,2,mean)/real3)-1
+a3=(z3-re3)^2
+b3=c(sum(a3[,1]),sum(a3[,2]),sum(a3[,3]),sum(a3[,4]),sum(a3[,5]),sum(a3[,6]),sum(a3[,7]),sum(a3[,8]),sum(a3[,9]),sum(a3[,10]),sum(a3[,11]))
+RMSE3=sqrt(b3/100)
+
+S3=cbind(real3,Est3,S.E.3,Rel.Bias3,RMSE3)
+S3<-matrix(S3,ncol=5)
+rownames(S3)<- c("BETA03","GUMMA3","BETA13","BETA23","ALPHA03","GUMMA4","ALPHA13","ALPHA23","RHO3","SIGMA3","TAU3")
+
+write.xlsx(S3, file = "ma3.xlsx",)
+###########################################################################
+################################################################
+Out4<-matrix(Out4,ncol=14)
+z4<-Out4[,c(-9,-10,-11)]
+real4=c(0.23,-0.7,0.6,0.2,0.4,1,-1.5,1.2,1.636,2,0.450)
+r4<-rep(real4,100)
+re4<-matrix(r4,ncol=11,byrow=T)
+
+Est4=apply(z4,2,mean)
+
+S.E.4=apply(z4,2,sd)/sqrt(N00)
+
+Rel.Bias4=(apply(z4,2,mean)/real4)-1
+a4=(z4-re4)^2
+b4=c(sum(a4[,1]),sum(a4[,2]),sum(a4[,3]),sum(a4[,4]),sum(a4[,5]),sum(a4[,6]),sum(a4[,7]),sum(a4[,8]),sum(a4[,9]),sum(a4[,10]),sum(a4[,11]))
+RMSE4=sqrt(b4/100)
+
+S4=cbind(real4,Est4,S.E.4,Rel.Bias4,RMSE4)
+S4<-matrix(S4,ncol=5)
+rownames(S4)<- c("BETA04","GUMMA5","BETA14","BETA24","ALPHA04","GUMMA6","ALPHA14","ALPHA24","RHO4","SIGMA4","TAU4")
+
+write.xlsx(S4, file = "ma4.xlsx",)
+####################################################################################
+########################################################################
+Out5<-matrix(Out5,ncol=14)
+z5<-Out5[,c(-9,-10,-11)]
+real5=c(0.31,0.42,-0.5,0.8,0.2,0.28,-1.4,1.1,1.636,2,0.450)
+r5<-rep(real5,100)
+re5<-matrix(r5,ncol=11,byrow=T)
+
+Est5=apply(z5,2,mean)
+
+S.E.5=apply(z5,2,sd)/sqrt(N00)
+
+Rel.Bias5=(apply(z5,2,mean)/real5)-1
+a5=(z5-re5)^2
+b5=c(sum(a5[,1]),sum(a5[,2]),sum(a5[,3]),sum(a5[,4]),sum(a5[,5]),sum(a5[,6]),sum(a5[,7]),sum(a5[,8]),sum(a5[,9]),sum(a5[,10]),sum(a5[,11]))
+RMSE5=sqrt(b5/100)
+
+S5=cbind(real5,Est5,S.E.5,Rel.Bias5,RMSE5)
+S5<-matrix(S5,ncol=5)
+rownames(S5)<- c("BETA05","GUMMA7","BETA15","BETA25","ALPHA05","GUMMA8","ALPHA15","ALPHA25","RHO5","SIGMA5","TAU5")
+
+write.xlsx(S5, file = "ma5.xlsx",)
+##############################################
+#############################################
